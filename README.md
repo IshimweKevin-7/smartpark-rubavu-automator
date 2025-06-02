@@ -40,4 +40,4 @@ Ideal for:
 * Mobile app integration
 
 Here are Some Images of What Included in Developmeny:Web App UI ![MyImage](UI.png)
-Database View: ![MyImage](UI.png)
+Database View: ![MyImage](DB.png)
