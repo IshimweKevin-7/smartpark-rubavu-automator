@@ -16,7 +16,7 @@
 
 ### 🧠 Tech Stack
 
-* **Frontend:** React, HTML, CSS, JavaScript
+* **Frontend:**HTML, CSS, JavaScript, Typescript
 * **Backend:** Node.js / Lovable.dev *(specify yours)*
 * **Database:** Supabase
 
