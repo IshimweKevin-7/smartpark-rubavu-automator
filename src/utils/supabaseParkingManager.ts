@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export class SupabaseParkingManager {
@@ -13,10 +12,15 @@ export class SupabaseParkingManager {
    */
   async isFull() {
     console.log("Checking if parking is full - O(1) database operation");
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from('parked_cars')
       .select('*', { count: 'exact', head: true })
       .eq('is_active', true);
+    
+    if (error) {
+      console.error('Error checking if parking is full:', error);
+      return false;
+    }
     
     return (count || 0) >= 50;
   }
@@ -28,10 +32,15 @@ export class SupabaseParkingManager {
    */
   async getAvailableSlots() {
     console.log("Counting available slots - O(1) database operation");
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from('parked_cars')
       .select('*', { count: 'exact', head: true })
       .eq('is_active', true);
+    
+    if (error) {
+      console.error('Error counting available slots:', error);
+      return 0;
+    }
     
     return 50 - (count || 0);
   }
@@ -44,22 +53,32 @@ export class SupabaseParkingManager {
   async findAvailableSlot() {
     console.log("Finding available slot - O(n) database operation");
     
-    // Get all occupied slot numbers
-    const { data: occupiedSlots } = await supabase
-      .from('parked_cars')
-      .select('slot_number')
-      .eq('is_active', true);
+    try {
+      // Get all occupied slot numbers
+      const { data: occupiedSlots, error } = await supabase
+        .from('parked_cars')
+        .select('slot_number')
+        .eq('is_active', true);
 
-    const occupiedNumbers = new Set(occupiedSlots?.map(slot => slot.slot_number) || []);
-    
-    // Find first available slot from 1 to 50
-    for (let i = 1; i <= 50; i++) {
-      if (!occupiedNumbers.has(i)) {
-        return i;
+      if (error) {
+        console.error('Error fetching occupied slots:', error);
+        return -1;
       }
+
+      const occupiedNumbers = new Set(occupiedSlots?.map(slot => slot.slot_number) || []);
+      
+      // Find first available slot from 1 to 50
+      for (let i = 1; i <= 50; i++) {
+        if (!occupiedNumbers.has(i)) {
+          return i;
+        }
+      }
+      
+      return -1; // No available slot
+    } catch (error) {
+      console.error('Error in findAvailableSlot:', error);
+      return -1;
     }
-    
-    return -1; // No available slot
   }
 
   /**
@@ -72,12 +91,20 @@ export class SupabaseParkingManager {
     
     try {
       // Check if car already exists
-      const { data: existingCar } = await supabase
+      const { data: existingCar, error: checkError } = await supabase
         .from('parked_cars')
         .select('id')
         .eq('plate_number', plateNumber.toUpperCase())
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking existing car:', checkError);
+        return {
+          success: false,
+          message: "Database error while checking existing car"
+        };
+      }
 
       if (existingCar) {
         return {
@@ -110,20 +137,33 @@ export class SupabaseParkingManager {
           plate_number: plateNumber.toUpperCase(),
           owner_name: ownerName,
           slot_number: slotNumber,
-          entry_time: new Date().toISOString()
+          entry_time: new Date().toISOString(),
+          is_active: true
         })
         .select()
         .single();
 
       if (error) {
-        throw error;
+        console.error('Error inserting car data:', error);
+        return {
+          success: false,
+          message: `Database error: ${error.message}`
+        };
       }
 
       // Update parking slot status
-      await supabase
+      const { error: updateError } = await supabase
         .from('parking_slots')
-        .update({ is_occupied: true, updated_at: new Date().toISOString() })
+        .update({ 
+          is_occupied: true, 
+          updated_at: new Date().toISOString() 
+        })
         .eq('slot_number', slotNumber);
+
+      if (updateError) {
+        console.error('Error updating parking slot:', updateError);
+        // Don't fail the entire operation for this
+      }
 
       return {
         success: true,
@@ -135,7 +175,7 @@ export class SupabaseParkingManager {
       console.error('Error entering car:', error);
       return {
         success: false,
-        message: "Failed to enter car. Please try again."
+        message: `Failed to enter car: ${error.message}`
       };
     }
   }
@@ -321,7 +361,7 @@ export class SupabaseParkingManager {
       .select('*')
       .eq('plate_number', plateNumber.toUpperCase())
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       return null;
@@ -348,7 +388,7 @@ export class SupabaseParkingManager {
       .select('*')
       .eq('slot_number', slotNumber)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       return null;
