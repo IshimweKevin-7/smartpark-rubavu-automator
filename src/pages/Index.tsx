@@ -10,55 +10,100 @@ import CarExitForm from '@/components/CarExitForm';
 import ParkingSlots from '@/components/ParkingSlots';
 import ReceiptDisplay from '@/components/ReceiptDisplay';
 import ComplexityAnalysis from '@/components/ComplexityAnalysis';
-import { ParkingManager } from '@/utils/parkingManager';
+import { SupabaseParkingManager } from '@/utils/supabaseParkingManager';
 import { toast } from '@/hooks/use-toast';
 
 const Index = () => {
-  const [parkingManager] = useState(() => new ParkingManager(50));
+  const [parkingManager] = useState(() => new SupabaseParkingManager());
   const [parkedCars, setParkedCars] = useState([]);
   const [availableSlots, setAvailableSlots] = useState(50);
   const [currentReceipt, setCurrentReceipt] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
 
   const forceRefresh = () => setRefresh(prev => prev + 1);
 
-  useEffect(() => {
-    setParkedCars(parkingManager.getAllParkedCars());
-    setAvailableSlots(parkingManager.getAvailableSlots());
-  }, [refresh]);
-
-  const handleCarEntry = (carData) => {
-    const result = parkingManager.enterCar(carData.plateNumber, carData.ownerName);
-    if (result.success) {
+  const loadParkingData = async () => {
+    try {
+      setLoading(true);
+      const [cars, available] = await Promise.all([
+        parkingManager.getAllParkedCars(),
+        parkingManager.getAvailableSlots()
+      ]);
+      setParkedCars(cars);
+      setAvailableSlots(available);
+    } catch (error) {
+      console.error('Error loading parking data:', error);
       toast({
-        title: "Car Entered Successfully",
-        description: `${carData.plateNumber} assigned to slot ${result.slotNumber}`,
-      });
-      forceRefresh();
-    } else {
-      toast({
-        title: "Entry Failed",
-        description: result.message,
+        title: "Error Loading Data",
+        description: "Failed to load parking information",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleCarExit = (plateNumber) => {
-    const result = parkingManager.exitCar(plateNumber);
-    if (result.success) {
-      setCurrentReceipt(result.receipt);
+  useEffect(() => {
+    loadParkingData();
+  }, [refresh]);
+
+  const handleCarEntry = async (carData) => {
+    try {
+      setLoading(true);
+      const result = await parkingManager.enterCar(carData.plateNumber, carData.ownerName);
+      if (result.success) {
+        toast({
+          title: "Car Entered Successfully",
+          description: `${carData.plateNumber} assigned to slot ${result.slotNumber}`,
+        });
+        forceRefresh();
+      } else {
+        toast({
+          title: "Entry Failed",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error entering car:', error);
       toast({
-        title: "Car Exited Successfully",
-        description: `Total amount: ${result.receipt.totalAmount} RWF`,
-      });
-      forceRefresh();
-    } else {
-      toast({
-        title: "Exit Failed",
-        description: result.message,
+        title: "Entry Failed",
+        description: "An unexpected error occurred",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCarExit = async (plateNumber) => {
+    try {
+      setLoading(true);
+      const result = await parkingManager.exitCar(plateNumber);
+      if (result.success) {
+        setCurrentReceipt(result.receipt);
+        toast({
+          title: "Car Exited Successfully",
+          description: `Total amount: ${result.receipt.totalAmount} RWF`,
+        });
+        forceRefresh();
+      } else {
+        toast({
+          title: "Exit Failed",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error exiting car:', error);
+      toast({
+        title: "Exit Failed",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -78,7 +123,7 @@ const Index = () => {
             SmartPark Rubavu
           </h1>
           <p className="text-lg text-gray-600">
-            Automated Parking Management System
+            Automated Parking Management System - Database Powered
           </p>
         </div>
 
@@ -135,6 +180,16 @@ const Index = () => {
           </Card>
         </div>
 
+        {/* Loading Indicator */}
+        {loading && (
+          <div className="text-center mb-4">
+            <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-lg">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent mr-2"></div>
+              Processing...
+            </div>
+          </div>
+        )}
+
         {/* Main Tabs */}
         <Tabs defaultValue="operations" className="w-full">
           <TabsList className="grid w-full grid-cols-5">
@@ -157,7 +212,7 @@ const Index = () => {
                 <CardContent>
                   <CarEntryForm 
                     onSubmit={handleCarEntry} 
-                    disabled={availableSlots === 0}
+                    disabled={availableSlots === 0 || loading}
                   />
                 </CardContent>
               </Card>
@@ -173,6 +228,7 @@ const Index = () => {
                   <CarExitForm 
                     onSubmit={handleCarExit}
                     parkedCars={parkedCars}
+                    disabled={loading}
                   />
                 </CardContent>
               </Card>
@@ -213,7 +269,7 @@ const Index = () => {
                               Entry: {new Date(car.entryTime).toLocaleString()}
                             </p>
                             <p className="text-sm text-gray-600">
-                              Duration: {Math.floor((Date.now() - car.entryTime) / (1000 * 60 * 60))}h {Math.floor(((Date.now() - car.entryTime) % (1000 * 60 * 60)) / (1000 * 60))}m
+                              Duration: {Math.floor((Date.now() - new Date(car.entryTime).getTime()) / (1000 * 60 * 60))}h {Math.floor(((Date.now() - new Date(car.entryTime).getTime()) % (1000 * 60 * 60)) / (1000 * 60))}m
                             </p>
                           </div>
                         </CardContent>

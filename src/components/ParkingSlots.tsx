@@ -1,19 +1,49 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Car, Square } from 'lucide-react';
 
 const ParkingSlots = ({ parkingManager }) => {
-  const slots = Array.from({ length: 50 }, (_, i) => {
-    const slotNumber = i + 1;
-    const carInfo = parkingManager.getSlotInfo(slotNumber);
-    return {
-      number: slotNumber,
-      occupied: carInfo !== null,
-      car: carInfo
+  const [slots, setSlots] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadSlots = async () => {
+      try {
+        setLoading(true);
+        const slotsData = [];
+        
+        for (let i = 1; i <= 50; i++) {
+          const carInfo = await parkingManager.getSlotInfo(i);
+          slotsData.push({
+            number: i,
+            occupied: carInfo !== null,
+            car: carInfo
+          });
+        }
+        
+        setSlots(slotsData);
+      } catch (error) {
+        console.error('Error loading slots:', error);
+      } finally {
+        setLoading(false);
+      }
     };
-  });
+
+    loadSlots();
+  }, [parkingManager]);
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-lg">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent mr-2"></div>
+          Loading parking slots...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

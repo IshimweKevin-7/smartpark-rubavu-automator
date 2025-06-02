@@ -6,12 +6,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card } from '@/components/ui/card';
 import { LogOut } from 'lucide-react';
 
-const CarExitForm = ({ onSubmit, parkedCars }) => {
+const CarExitForm = ({ onSubmit, parkedCars, disabled = false }) => {
   const [selectedCar, setSelectedCar] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (selectedCar) {
+    if (selectedCar && !disabled) {
       onSubmit(selectedCar);
       setSelectedCar('');
     }
@@ -31,7 +31,7 @@ const CarExitForm = ({ onSubmit, parkedCars }) => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="carSelect">Select Car to Exit</Label>
-        <Select value={selectedCar} onValueChange={setSelectedCar}>
+        <Select value={selectedCar} onValueChange={setSelectedCar} disabled={disabled}>
           <SelectTrigger>
             <SelectValue placeholder="Choose a car..." />
           </SelectTrigger>
@@ -53,11 +53,11 @@ const CarExitForm = ({ onSubmit, parkedCars }) => {
       <Button 
         type="submit" 
         className="w-full" 
-        disabled={!selectedCar}
+        disabled={!selectedCar || disabled}
         variant="destructive"
       >
         <LogOut className="mr-2 h-4 w-4" />
-        Exit Car
+        {disabled ? 'Processing...' : 'Exit Car'}
       </Button>
     </form>
   );
