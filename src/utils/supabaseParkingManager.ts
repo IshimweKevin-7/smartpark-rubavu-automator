@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export class SupabaseParkingManager {
@@ -22,7 +23,9 @@ export class SupabaseParkingManager {
       return false;
     }
     
-    return (count || 0) >= 50;
+    const currentCount = count || 0;
+    console.log(`Current active cars: ${currentCount}/50`);
+    return currentCount >= 50;
   }
 
   /**
@@ -42,7 +45,9 @@ export class SupabaseParkingManager {
       return 0;
     }
     
-    return 50 - (count || 0);
+    const available = 50 - (count || 0);
+    console.log(`Available slots: ${available}`);
+    return available;
   }
 
   /**
@@ -66,14 +71,17 @@ export class SupabaseParkingManager {
       }
 
       const occupiedNumbers = new Set(occupiedSlots?.map(slot => slot.slot_number) || []);
+      console.log(`Occupied slots: ${Array.from(occupiedNumbers).join(', ')}`);
       
       // Find first available slot from 1 to 50
       for (let i = 1; i <= 50; i++) {
         if (!occupiedNumbers.has(i)) {
+          console.log(`Found available slot: ${i}`);
           return i;
         }
       }
       
+      console.log("No available slots found");
       return -1; // No available slot
     } catch (error) {
       console.error('Error in findAvailableSlot:', error);
@@ -90,10 +98,10 @@ export class SupabaseParkingManager {
     console.log(`Entering car ${plateNumber} - O(1) database operation`);
     
     try {
-      // Check if car already exists
+      // First check if car already exists (this should be the first check)
       const { data: existingCar, error: checkError } = await supabase
         .from('parked_cars')
-        .select('id')
+        .select('id, plate_number')
         .eq('plate_number', plateNumber.toUpperCase())
         .eq('is_active', true)
         .maybeSingle();
@@ -107,14 +115,17 @@ export class SupabaseParkingManager {
       }
 
       if (existingCar) {
+        console.log(`Car ${plateNumber} already exists in parking`);
         return {
           success: false,
           message: "Car with this plate number is already parked"
         };
       }
 
-      // Check if parking is full
-      if (await this.isFull()) {
+      // Check available slots count
+      const availableCount = await this.getAvailableSlots();
+      if (availableCount <= 0) {
+        console.log("Parking is full - no available slots");
         return {
           success: false,
           message: "Parking is full. No available slots."
@@ -124,6 +135,7 @@ export class SupabaseParkingManager {
       // Find available slot
       const slotNumber = await this.findAvailableSlot();
       if (slotNumber === -1) {
+        console.log("No specific slot found");
         return {
           success: false,
           message: "No available slots found."
@@ -150,6 +162,8 @@ export class SupabaseParkingManager {
           message: `Database error: ${error.message}`
         };
       }
+
+      console.log(`Car ${plateNumber} successfully entered in slot ${slotNumber}`);
 
       // Update parking slot status
       const { error: updateError } = await supabase
